@@ -40,6 +40,8 @@ function highlight(){
 
 if [[ $* == *--install-packages* ]] ; then
   highlight "Installing system packages..."
+  # In case platform does not have sudo installed (Docker containers):
+  apt-get install sudo
   sudo apt-get update
   # Get ubuntu version:
   sudo apt-get install -y wget software-properties-common
