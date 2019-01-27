@@ -40,6 +40,7 @@ function highlight(){
 
 if [[ $* == *--install-packages* ]] ; then
   highlight "Installing system packages..."
+  sudo apt-get update
   # Get ubuntu version:
   sudo apt-get install -y wget software-properties-common
   source /etc/lsb-release # fetch DISTRIB_CODENAME
