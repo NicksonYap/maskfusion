@@ -131,7 +131,10 @@ pip3 install h5py
 pip3 install cython
 pip3 install imgaug
 pip3 install opencv-python
-ln -s python-environment/lib/python3.5/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
+#Ensure numpy symbolic link doesn't exist
+rm Core/Segmentation/MaskRCNN/numpy || true
+#Create numpy symbolic link
+ln -s ../../../python-environment/lib/python3.5/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
 
 
 
