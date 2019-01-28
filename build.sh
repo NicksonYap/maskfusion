@@ -8,7 +8,10 @@
 # `--build-dependencies` to build third party dependencies
 #
 # Example:
-#   ./build.sh --install-packages --build-dependencies
+#   sudo ./build.sh --install-packages
+#   sudo ./build.sh --install-cuda
+#   ./build.sh --build-dependencies
+#   ./build.sh --build-maskfusion
 #
 #   which will create:
 #   - ./deps/densecrf
@@ -40,6 +43,11 @@ function highlight(){
 
 if [[ $* == *--install-packages* ]] ; then
   highlight "Installing system packages..."
+  if [[ $UID != 0 ]]; then
+    echo "Please run this script with sudo:"
+    echo "sudo $0 $*"
+    exit 1
+  fi
   # In case platform does not have sudo installed (Docker containers):
   apt-get install sudo
   sudo apt-get update
@@ -72,9 +80,9 @@ if [[ $* == *--install-packages* ]] ; then
     openjdk-8-jdk \
     unzip \
     zlib1g-dev \
-    cython3
-
-    sudo -H pip3 install virtualenv
+    cython3 \
+    python3-pip \
+    libfreetype6-dev
 
   if [[ $DISTRIB_CODENAME == *"trusty"* ]] ; then
      # switch to g++-4.9
@@ -88,6 +96,11 @@ fi # --install-packages
 
 if [[ $* == *--install-cuda* ]] ; then
   highlight "Installing CUDA..."
+  if [[ $UID != 0 ]]; then
+    echo "Please run this script with sudo:"
+    echo "sudo $0 $*"
+    exit 1
+  fi
   # Get ubuntu version:
   sudo apt-get install -y wget software-properties-common
   source /etc/lsb-release # fetch DISTRIB_CODENAME
@@ -118,27 +131,29 @@ if [[ $* == *--install-cuda* ]] ; then
 fi # --install-cuda
 
 
-# Create virtual python environment and install packages
-highlight "Setting up virtual python environment..."
-virtualenv python-environment
-source python-environment/bin/activate
-pip3 install pip --upgrade
-pip3 install tensorflow-gpu==1.8.0
-pip3 install scikit-image
-pip3 install keras
-pip3 install IPython
-pip3 install h5py
-pip3 install cython
-pip3 install imgaug
-pip3 install opencv-python
-#Ensure numpy symbolic link doesn't exist
-rm Core/Segmentation/MaskRCNN/numpy || true
-#Create numpy symbolic link
-ln -s ../../../python-environment/lib/python3.5/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
-
-
-
 if [[ $* == *--build-dependencies* ]] ; then
+  # Create virtual python environment and install packages
+  highlight "Setting up virtual python environment..."
+  if [[ $UID == 0 ]]; then
+    echo "Please run this script without sudo"
+    exit 1
+  fi
+  pip3 install virtualenv
+  virtualenv python-environment
+  source python-environment/bin/activate
+  pip3 install pip --upgrade
+  pip3 install tensorflow-gpu==1.8.0
+  pip3 install scikit-image
+  pip3 install keras
+  pip3 install IPython
+  pip3 install h5py
+  pip3 install cython
+  pip3 install imgaug
+  pip3 install opencv-python
+  #Ensure numpy symbolic link doesn't exist
+  rm Core/Segmentation/MaskRCNN/numpy || true
+  #Create numpy symbolic link
+  ln -s ../../../python-environment/lib/python3.5/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
 
   # Build dependencies
   mkdir -p deps
@@ -289,17 +304,24 @@ if [ -z "${BOOST_ROOT}" -a -d deps/boost ]; then
   BOOST_ROOT=$(pwd)/deps/boost
 fi
 
-# Build MaskFusion
-highlight "Building MaskFusion..."
-mkdir -p build
-cd build
-ln -s ../deps/Mask_RCNN ./ || true # Also, make sure that the file 'mask_rcnn_model.h5' is linked or present
-cmake \
-  -DBOOST_ROOT="${BOOST_ROOT}" \
-  -DOpenCV_DIR="$(pwd)/../deps/opencv/build" \
-  -DPangolin_DIR="$(pwd)/../deps/Pangolin/build/src" \
-  -DMASKFUSION_PYTHON_VE_PATH="$(pwd)/../python-environment" \
-  -DWITH_FREENECT2=OFF \
-  ..
-make -j8
-cd ..
+
+if [[ $* == *--build-maskfusion* ]] ; then
+  # Build MaskFusion
+  highlight "Building MaskFusion..."
+  if [[ $UID == 0 ]]; then
+    echo "Please run this script without sudo"
+    exit 1
+  fi
+  mkdir -p build
+  cd build
+  ln -s ../deps/Mask_RCNN ./ || true # Also, make sure that the file 'mask_rcnn_model.h5' is linked or present
+  cmake \
+    -DBOOST_ROOT="${BOOST_ROOT}" \
+    -DOpenCV_DIR="$(pwd)/../deps/opencv/build" \
+    -DPangolin_DIR="$(pwd)/../deps/Pangolin/build/src" \
+    -DMASKFUSION_PYTHON_VE_PATH="$(pwd)/../python-environment" \
+    -DWITH_FREENECT2=OFF \
+    ..
+  make -j8
+  cd ..
+fi
