@@ -6,21 +6,9 @@
 # `--install-packages` to install required Ubuntu packages
 # `--install-cuda` to install the NVIDIA CUDA suite
 # `--build-dependencies` to build third party dependencies
-# `--no-build` to avoid building MaskFusion
 #
 # Example:
-#
-# Install Packages:
-#   sudo ./build.sh --no-build --install-packages
-#
-# Install CUDA (if not already installed)
-#   sudo ./build.sh --no-build --install-cuda
-#
-# Build Dependencies
-#   ./build.sh --no-build --build-dependencies
-#
-# Build MaskFusion
-#   ./build.sh 
+#   ./build.sh --install-packages --build-dependencies
 #
 #   which will create:
 #   - ./deps/densecrf
@@ -84,8 +72,9 @@ if [[ $* == *--install-packages* ]] ; then
     openjdk-8-jdk \
     unzip \
     zlib1g-dev \
-    cython3 \
-    libfreetype6-dev
+    cython3
+
+    sudo -H pip3 install virtualenv
 
   if [[ $DISTRIB_CODENAME == *"trusty"* ]] ; then
      # switch to g++-4.9
@@ -127,6 +116,26 @@ if [[ $* == *--install-cuda* ]] ; then
     exit 1
   fi
 fi # --install-cuda
+
+
+# Create virtual python environment and install packages
+highlight "Setting up virtual python environment..."
+virtualenv python-environment
+source python-environment/bin/activate
+pip3 install pip --upgrade
+pip3 install tensorflow-gpu==1.8.0
+pip3 install scikit-image
+pip3 install keras
+pip3 install IPython
+pip3 install h5py
+pip3 install cython
+pip3 install imgaug
+pip3 install opencv-python
+#Ensure numpy symbolic link doesn't exist
+rm Core/Segmentation/MaskRCNN/numpy || true
+#Create numpy symbolic link
+ln -s ../../../python-environment/lib/python3.5/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
+
 
 
 if [[ $* == *--build-dependencies* ]] ; then
@@ -280,41 +289,17 @@ if [ -z "${BOOST_ROOT}" -a -d deps/boost ]; then
   BOOST_ROOT=$(pwd)/deps/boost
 fi
 
-
-if ! [[ $* == *--no-build* ]] ; then
-  # Create virtual python environment and install packages
-  highlight "Setting up virtual python environment..."
-  pip install virtualenv
-  virtualenv python-environment
-  source python-environment/bin/activate
-  pip install pip --upgrade
-  pip install 'tensorflow-gpu>=1.8.0,<1.9.0'
-  pip install scikit-image
-  pip install keras
-  pip install IPython
-  pip install h5py
-  pip install cython
-  pip install imgaug
-  pip install opencv-python
-
-  #ref: https://stackoverflow.com/questions/6141581/detect-python-version-in-shell-script#comment71174761_6141633
-  PYTHON_VERSION=`python -c 'import sys; version=sys.version_info[:3]; print("{0}.{1}".format(*version))'`
-
-  #Create numpy symbolic link
-  ln -sf ../../../python-environment/lib/python${PYTHON_VERSION}/site-packages/numpy/core/include/numpy Core/Segmentation/MaskRCNN
-
-  # Build MaskFusion
-  highlight "Building MaskFusion..."
-  mkdir -p build
-  cd build
-  ln -s ../deps/Mask_RCNN ./ || true # Also, make sure that the file 'mask_rcnn_model.h5' is linked or present
-  cmake \
-    -DBOOST_ROOT="${BOOST_ROOT}" \
-    -DOpenCV_DIR="$(pwd)/../deps/opencv/build" \
-    -DPangolin_DIR="$(pwd)/../deps/Pangolin/build/src" \
-    -DMASKFUSION_PYTHON_VE_PATH="$(pwd)/../python-environment" \
-    -DWITH_FREENECT2=OFF \
-    ..
-  make -j8
-  cd ..
-fi
+# Build MaskFusion
+highlight "Building MaskFusion..."
+mkdir -p build
+cd build
+ln -s ../deps/Mask_RCNN ./ || true # Also, make sure that the file 'mask_rcnn_model.h5' is linked or present
+cmake \
+  -DBOOST_ROOT="${BOOST_ROOT}" \
+  -DOpenCV_DIR="$(pwd)/../deps/opencv/build" \
+  -DPangolin_DIR="$(pwd)/../deps/Pangolin/build/src" \
+  -DMASKFUSION_PYTHON_VE_PATH="$(pwd)/../python-environment" \
+  -DWITH_FREENECT2=OFF \
+  ..
+make -j8
+cd ..
